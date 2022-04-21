@@ -1,0 +1,680 @@
+#+title: Hamiltonian Monte Carlo for Hierarchical Models: Gradients and Re-parameterization
+#+filetags: :bayes:
+* Introduction
+  The objective of this document is to bring attention to the
+  pathological behavior which naturally arises in hierarchical models,
+  then recapitulate the implications for Hamiltonian Monte Carlo and a
+  general re-parameterization strategy which can resolve such
+  problems. The contribution of this work is to show /why/ the
+  re-parameterization is so successful by considering the effect on
+  the gradient of the log posterior. The last aspect will be of
+  particular interest to any researcher utilizing hierarchical models,
+  as it motivates the application of the re-parameterization for any
+  Markov chain Monte Carlo (MCMC) strategy which utilizes gradients.
+* Background: a deceptively simple model
+  All hierarchical models inevitably suffer from Neal's funnel (cite:
+  Handbook of Markov Chain Monte Carlo), the extent of which depends
+  on the prior(s) and data. As an example, we utilize the classic
+  example of a hierarchical Bayesian model, the simple 8-schools
+  model, a full treatment of which is available in Bayesian Data
+  Analysis, Chapter 5.5, 3rd edition (cite: BDA). This model has the
+  convenience of conceptual simplicity, while incurring all the
+  pathologies endemic to hierarchical models. \\
+  At this point, we must direct the reader to an excellent work which
+  examines this problem using Hamiltonian Monte Carlo, Gibbs Sampler
+  (with parameter expansion), and Metropolis strategies (cite:
+  Betancourt and Girolami-2015). The cited work should be considered
+  the starting point for the present author's work, which expands upon
+  one detail which was not included in Betancourt and Girolami-2015
+  (perhaps because it seemed so elementary). \\
+* Centered parameterization
+  The form of the model under the centered parameterization is:
+  $$y_{j} \sim N(\alpha_{j}, \sigma_{j}^{2})$$ $$\alpha_{j} \sim
+  N(\mu, \tau^{2})$$ $$\mu \sim U(-\infty, \infty)$$ $$\tau \sim U(0,
+  \infty)$$ with $j=1,\ldots,J$. \\
+  The resultant form of the posterior distribution is $$p(\alpha, \mu, \tau | y,
+  \sigma^{2}) \propto \prod_{j=1}^{J} N(y_{j} | \alpha_{j},
+  \sigma_{j}^{2}) N(\alpha_{j} | \mu, \tau^{2})$$ Plugging in the
+  normal density function and taking the log, this yields $$\log
+  p(\alpha, \mu, \tau | y, \sigma^{2}) \propto \sum_{j=1}^{J}
+  -\frac{1}{2}\log(2\pi \sigma_{j}^{2}) -\frac{1}{2}\frac{(y_{j} -
+  \alpha_{j})^{2}}{\sigma_{j}^{2}} -\frac{1}{2}\log(2\pi \tau^{2})
+  -\frac{1}{2}\frac{(\alpha_{j} - \mu)^{2}}{\tau^{2}}$$ This yields
+  the following terms in the gradient of the log posterior
+  $$\frac{\partial \log p(\alpha, \mu, \tau | y, \sigma^{2})}{\partial
+  \alpha_{j}} = \frac{y_{j} - \alpha_{j}}{\sigma_{j}^{2}} -
+  \frac{\alpha_{j} - \mu}{\tau^{2}}$$ $$\frac{\partial \log p(\alpha, \mu, \tau |
+  y, \sigma^{2})}{\partial \mu} = \sum_{j=1}^{J} \frac{\alpha_{j} -
+  \mu}{\tau^{2}}$$ $$\frac{\partial \log p(\alpha, \mu, \tau | y,
+  \sigma^{2})}{\partial \tau} = -\frac{J}{\tau} + \sum_{j=1}^{J}
+  \frac{(\alpha_{j} - \mu)^{2}}{\tau^{3}}$$ To enforce the constraint
+  that $\tau > 0$, we transform $\tau$ to $\log\tau$ in order to place
+  it on an unconstrained space. The original posterior must be
+  multiplied by the Jacobian, $\frac{\partial \tau}{\partial \log\tau}
+  = \tau$. At severe risk of being overly pedantic, this arises from
+  $p(\log\tau) = |\frac{\partial \tau}{\partial \log\tau}| p(\tau)$,
+  which simplifies to $\exp(\log\tau) = \tau$. Hence, the new
+  posterior is $$p(\alpha, \mu, \tau | y, \sigma^{2}) \propto \tau
+  \prod_{j=1}^{J} N(y_{j} | \alpha_{j}, \sigma_{j}^{2}) N(\alpha_{j} |
+  \mu, \tau^{2})$$ Plugging in the normal density and taking the log,
+  this yields $$\log p(\alpha, \mu, \tau | y, \sigma^{2}) \propto \log\tau +
+  \sum_{j=1}^{J} -\frac{1}{2}\log(2\pi \sigma_{j}^{2})
+  -\frac{1}{2}\frac{(y_{j} - \alpha_{j})^{2}}{\sigma_{j}^{2}}
+  -\frac{1}{2}\log(2\pi \tau^{2}) -\frac{1}{2}\frac{(\alpha_{j} -
+  \mu)^{2}}{\tau^{2}}$$ The components of the gradient of the log
+  posterior w.r.t. to $\mu$ and $\alpha_{j}$ remain unchanged, but as
+  one is now performing transitions in the unconstrained space, one
+  must replace $\frac{\partial \log p(\alpha, \mu, \tau | y,
+  \sigma^{2})}{\partial \tau}$ with $$\frac{\partial \log p(\alpha, \mu, \tau |
+  y, \sigma^{2})}{\partial \log\tau} = \frac{\partial \log p(\alpha, \mu, \tau |
+  y, \sigma^{2})}{\partial \tau} \frac{\partial \tau}{\partial
+  \log\tau} = -J + 1 + \sum_{j=1}^{J} \frac{(\alpha_{j} -
+  \mu)^{2}}{\tau^{2}}$$
+* Non-centered parameterization
+  The re-parameterization is quite intuitive to one familiar with
+  generating samples from the normal distribution: $$\alpha_{j} =
+  \mu + \tau \eta_{j}$$ $$\eta_{j} \sim N(0, 1)$$ The resultant form
+  under the non-centered parameterization is therefore: $$y_{j} \sim
+  N(\mu + \tau \eta_{j}, \sigma_{j}^{2})$$ $$\eta_{j} \sim N(0, 1)$$
+  $$\mu \sim U(-\infty, \infty)$$ $$\tau \sim U(0, \infty)$$ with
+  $j=1,\ldots,J$. \\
+  The resultant form of the posterior distribution is $$p(\eta, \mu,
+  \tau | y, \sigma^{2}) \propto \prod_{j=1}^{J} N(y_{j} | \mu + \tau
+  \eta_{j}, \sigma_{j}^{2}) N(\eta_{j} | 0, 1)$$ Plugging in the
+  normal density function and taking the log, this yields $$\log
+  p(\eta, \mu, \tau | y, \sigma^{2}) \propto \sum_{j=1}^{J}
+  -\frac{1}{2}\log(2\pi \sigma_{j}^{2}) -\frac{1}{2}\frac{(y_{j} -
+  \mu - \tau \eta_{j})^{2}}{\sigma_{j}^{2}} -\frac{1}{2}\log(2\pi)
+  -\frac{1}{2}\eta_{j}^{2}$$ This yields the following terms in the
+  gradient of the log posterior $$\frac{\partial \log p(\eta, \mu,
+  \tau | y, \sigma^{2})}{\partial \eta_{j}} = (y_{j} - \mu - \tau
+  \eta_{j})\frac{\tau}{\sigma_{j}^{2}} -\eta_{j}$$ $$\frac{\partial
+  \log p(\eta, \mu, \tau | y, \sigma^{2})}{\partial \mu} =
+  \sum_{j=1}^{J} \frac{y_{j} - \mu - \tau \eta_{j} }{\sigma_{j}^{2}}$$
+  $$\frac{\partial \log p(\eta, \mu, \tau | y, \sigma^{2})}{\partial
+  \tau} = \sum_{j=1}^{J} (y_{j} - \mu - \tau \eta_{j})
+  \frac{\eta_{j}}{\sigma_{j}^{2}}$$ Once again, to enforce the
+  constraint that $\tau > 0$, we transform $\tau$ to $\log\tau$. The
+  original posterior must be multiplied by the Jacobian,
+  $\frac{\partial \tau}{\partial \log\tau} = \tau$.  $$p(\eta, \mu,
+  \tau | y, \sigma^{2}) \propto \tau \prod_{j=1}^{J} N(y_{j} | \mu +
+  \tau \eta_{j}, \sigma_{j}^{2}) N(\eta_{j} | 0, 1)$$ Plugging in the
+  normal density function and taking the log, this yields $$\log
+  p(\eta, \mu, \tau | y, \sigma^{2}) \propto \log\tau + \sum_{j=1}^{J}
+  -\frac{1}{2}\log(2\pi \sigma_{j}^{2}) -\frac{1}{2}\frac{(y_{j} -
+  \mu - \tau \eta_{j})^{2}}{\sigma_{j}^{2}} -\frac{1}{2}\log(2\pi)
+  -\frac{1}{2}\eta_{j}^{2}$$ The components of the gradient of the log
+  posterior w.r.t. to $\mu$ and $\eta_{j}$ remain unchanged, but as
+  one is now performing transitions in the unconstrained space, one
+  must replace $\frac{\partial \log p(\eta, \mu, \tau | y,
+  \sigma^{2})}{\partial \tau}$ with $$\frac{\partial \log p(\eta, \mu,
+  \tau | y, \sigma^{2})}{\partial \log\tau} = \frac{\partial \log
+  p(\eta, \mu, \tau | y, \sigma^{2})}{\partial \tau} \frac{\partial
+  \tau}{\partial \log\tau} = 1 + \tau \sum_{j=1}^{J}(y_{j} - \mu -
+  \tau \eta_{j}) \frac{\eta_{j}}{\sigma_{j}^{2}}$$
+* After much algebra...
+  The author apologizes to the reader for the excessively pedantic
+  algebra, but the objective here is to provide the gradients (after
+  log transformation of $\tau$) for quick reference. If we examine the
+  gradients, one observes that the re-parameterization confers
+  interesting changes. In particular, $\frac{\partial \log p(\eta,
+  \mu, \tau | y, \sigma^{2})}{\partial \mu}$ becomes linear in $\tau$
+  rather than $\propto \tau^{-2}$. Furthermore, $\mu$ and $\tau$
+  appear separately, rather than as a ratio.  This also confers a more
+  reasonable Euclidean-Gaussian metric, as $M^{-1} = \mathbb{E}[(q -
+  \mathbb{E}[q])(q - \mathbb{E}[q])^{T}]$ now has reasonable estimates
+  of the posterior variances for $\eta_{j}$. Given $$q
+  = \begin{bmatrix} \eta_{1} \\ \vdots \\ \eta_{8} \\ \mu \\ \log\tau
+  \end{bmatrix}$$ $$M^{-1} = \text{diag}(\begin{bmatrix} 1 \\ \vdots
+  \\ 1 \\ 15^{2} \\ 1 \end{bmatrix})$$ seems like a very reasonable
+  estimate. \\
+  This is inherently more stable than the centered parameterization in
+  which the posterior of $\alpha_{j}$'s yielded $$M^{-1} =
+  \text{diag}(\begin{bmatrix} 15^{2} \\ \vdots \\ 15^{2} \\ 15^{2}
+  \\ 1 \end{bmatrix})$$ hence, the momentum steps are very large
+  (think $M^{-1} p$. On the other hand, $\pi(p|q) = N(0, M)$,
+  therefore the momentum sampling is very narrow in the centered
+  parameterization. \\
+  In the non-centered parameterization, momentum sampling is
+  relatively wide. Therefore the randomization over the energy level
+  sets is much faster, and the corresponding integration is more
+  cautious (i.e. smaller step size). In the centered parameterization,
+  it now makes sense why a 'whirlpool' (borrowing the term from
+  Ch. 15.5 of BDA): Transition between energy level sets is slow, with
+  the energy changing by only a small amount. Meanwhile, the
+  integration within a level set takes very large steps, thereby
+  making many circumnavigations of the level set. Furthermore, the
+  large steps increase the chance that divergences from the true
+  energy level set occur. \\
+  In the non-centered parameterization, the transition between energy
+  level sets is fast, with the energy changing by a large
+  amount. Meanwhile, the integration within a level set takes small
+  steps, thereby decreasing the chance that excessive
+  circumnavigations occur. Furthermore, the small steps decrease the
+  chance that divergences from the true energy level set occur. \\
+  There are 3 major aspects for which the non-centered
+  parameterization offers advantages:
+  1) rate of transition between energy level sets (viz. $p = N(0, M)$)
+  2) excessive circumnavigation of each energy level set (viz. step size, $M^{-1}p$)
+  3) chance of divergences from true energy level set (viz. step size, $M^{-1}p$)
+  At best, under a centered parameterization, dynamic HMC using
+  No-U-Turn-Sampler (NUTS) _might_ alleviate 2), but there is no
+  guarantee. 1) and 3) would still plague HMC-NUTS. Thus, the only
+  chance for hierarchical models is a non-centered
+  parameterization. \\
+  Consider also the effect of small $\tau$ under the centered
+  parameterization: all terms have $\propto \tau^{-2}$. Small values
+  of $\tau$ cause $\nabla\log \pi(q)$ to become huge, thus, the
+  integrator is unlikely to leave the region of small $\tau$ once it
+  enters. Furthermore, it is unlikely to enter regions of small $\tau$
+  as $\log\tau$ would be a large negative number (repeated J times),
+  and the other terms of the log posterior would become large, hence,
+  the Metropolis proposal would most likely be rejected. On the
+  contrary, the non-centered parameterization is $\propto \tau$ or
+  $\propto \tau^{2}$, hence, small values of $\tau$ are identical to
+  small values of any parameter. The gradient of $\nabla \log \pi(q)$
+  does not blow up, hence, integration into / out-of regions of small
+  $\tau$ without issue. Therefore, the motivation for non-centered
+  parameterization is very strong when considered purely in terms of
+  the Euclidean-Gaussian metric. When the dependence on $\tau$ is
+  considered, the motivation becomes overwhelming. In essence, even if
+  HMC can be tuned, the $\nabla \log \pi(q)$ will still repulse
+  trajectories proposing small $\tau$, or trap trajectories already at
+  small $\tau$.
+* Sample code: static implementation of Euclidean Hamiltonian Monte Carlo
+  #+begin_src julia
+    using LinearAlgebra, Statistics
+    ############################################################################################
+    #General utilities
+    function inversediagdet(M⁻¹::Matrix{T}) where {T<:Real}
+        s = one(T)
+        for j ∈ axes(M⁻¹, 1)
+            s *= one(T) / M⁻¹[j, j]
+        end
+        s
+    end
+
+    function weightedss(p, M⁻¹::Matrix{T}) where {T<:Real}
+        s = zero(T)
+        for j ∈ axes(M⁻¹, 1)
+            s += M⁻¹[j, j] * abs2(p[j])
+            # or:
+            # pⱼ = p[j]
+            # s += pⱼ * pⱼ * M⁻¹[j, j]
+        end
+        s
+    end
+
+    function logπp(p, M⁻¹)
+        # s = length(p) * log(2π)
+        # s += log(inversediagdet(M⁻¹))
+        # s += weightedss(p, M⁻¹)
+        # s *= -0.5
+        # s
+        # # Or, simpler:
+        -0.5 * (length(p) * log(2π) + log(inversediagdet(M⁻¹)) + weightedss(p, M⁻¹))
+        # # unnormalized density
+        # -0.5weightedss(p, M⁻¹) -0.5log(inversediagdet(M⁻¹))
+        # -0.5weightedss(p, M⁻¹)
+    end
+
+    # Using the mass matrix directly
+    function momentumrand_M(M)
+        p = randn(size(M, 1))
+        @inbounds for j ∈ axes(M, 1)
+            p[j] *= √(M[j, j])
+        end
+        p
+    end
+
+    # Using the lower triangular of the cholesky, AAᵀ = M
+    function momentumrand_A(A)
+        p = randn(size(A, 1))
+        @inbounds for j ∈ axes(A, 1)
+            p[j] *= A[j, j]
+        end
+        p
+    end
+
+    # Using the inverse mass matrix directly
+    function momentumrand_M⁻¹(M⁻¹)
+        p = randn(size(M⁻¹, 1))
+        @inbounds for j ∈ axes(M⁻¹, 1)
+            p[j] *= inv(√(M⁻¹[j, j]))
+        end
+        p
+    end
+
+    function targetrand(M⁻¹::Matrix{T}) where {T<:Real}
+        K = size(M⁻¹, 1)
+        q₀ = randn(K)
+        for k ∈ eachindex(q₀)
+            q₀[k] *= √(M⁻¹[k, k])
+        end
+        q₀
+    end
+    ############################################################################################
+    # Static HMC implementation:
+    # This is a high-level implementation, not as efficient as I would normally write.
+    # Much, so much in-place mutation can be used to minimize memory usage...
+    ################################################################
+    # Functions to support formal version, other than those provided above
+    function symplecticintegrate(f_gradlogπ, q₀, p₀, M⁻¹, ϵ, L)
+        p′ = p₀ + 0.5ϵ * f_gradlogπ(q₀)
+        q′ = q₀ + ϵ * M⁻¹ * p′
+        for l = 2:L
+            p′ = p′ + ϵ * f_gradlogπ(q′)
+            q′ = q′ + ϵ * M⁻¹ * p′
+        end
+        p′ = p′ + 0.5ϵ * f_gradlogπ(q′)
+        q′, -p′
+    end
+
+    ################ Thinking in terms of the Hamiltonian
+    H(f_logπq, q, p, M⁻¹) = -f_logπq(q) - logπp(p, M⁻¹)
+    E_pq(f_logπq, q, E) = E + f_logπq(q)
+    logπp(f_logπq, q, E) = E_pq(f_logπq, q, E)
+
+    function transition(f_logπq, f_gradlogπ, q₀, p₀, M, M⁻¹, ϵ, L)
+        q′, p′ = symplecticintegrate(f_gradlogπ, q₀, p₀, M⁻¹, ϵ, L)
+        r = exp(-H(f_logπq, q′, p′, M⁻¹) + H(f_logπq, q₀, p₀, M⁻¹))
+        u = rand()
+        u < r ? (q′, p′) : (q₀, p₀)
+    end
+    transition(f_logπq, f_gradlogπ, q₀, M, M⁻¹, ϵ, L) =
+        transition(f_logπq, f_gradlogπ, q₀, momentumrand_M(M), M, M⁻¹, ϵ, L)
+    transition(f_logπq, f_gradlogπ, M, M⁻¹, ϵ, L) =
+        transition(f_logπq, f_gradlogπ, targetrand(M⁻¹), momentumrand_M(M), M, M⁻¹, ϵ, L)
+
+    function hmc(f_logπq, f_gradlogπ, q₀, M, M⁻¹, ϵ, L, N)
+        θ = Matrix{Float64}(undef, size(M, 1), N)
+        E = Vector{Float64}(undef, N)
+        n, t = 0, 0
+        while n < N
+            p₀ = momentumrand_M(M)
+            q′, p′ = symplecticintegrate(f_gradlogπ, q₀, p₀, M⁻¹, ϵ, L)
+            E₀ = H(f_logπq, q₀, p₀, M⁻¹)
+            E′ = H(f_logπq, q′, p′, M⁻¹)
+            r = exp(-E′ + E₀)
+            if rand() < r
+                n += 1
+                θ[:, n] = q′
+                q₀ = q′
+                E[n] = E′
+            end
+            t += 1
+        end
+        θ, E, n, t
+    end
+    hmc(f_logπq, f_gradlogπ, M, M⁻¹, ϵ, L, N) =
+        hmc(f_logπq, f_gradlogπ, targetrand(M⁻¹), M, M⁻¹, ϵ, L, N)
+
+    function ebfmi(E::Vector{T}) where {T<:Real}
+        N = length(E)
+        s = zero(T)
+        # As written, this has _clear_ potential for numerical stability issues
+        for n = 2:N
+            s += abs2(E[n] - E[n - 1])
+        end
+        s / (N * var(E, corrected=false))
+    end
+
+    function microcanonicalenergy(f_logπq, q, E)
+        Eq = -f_logπq(q)
+        Epq = E - Epq
+        Epq, Eq
+    end
+
+    function microcanonicalenergy(f_logπq, Q::Matrix{T}, E::Vector{T}) where {T<:Real}
+        N = length(E)
+        Eq = Vector{Float64}(undef, N)
+        Epq = Vector{Float64}(undef, N)
+        for (n, q) ∈ enumerate(eachcol(Q))
+            Eq[n] = -f_logπq(q)
+            Epq[n] = E[n] - Eq[n]
+        end
+        Epq, Eq
+    end
+
+    # Guaranteed initialization for models in which small τ causes sticking
+    # (i.e. for centered parameterizations)
+    function initialize(f_logπq, f_gradlogπ, M, M⁻¹, ϵ, L)
+        t = 0
+        while true
+            q₀, p₀ = targetrand(M⁻¹), momentumrand_M(M)
+            q′, p′ = transition(f_logπq, f_gradlogπ, q₀, p₀, M, M⁻¹, ϵ, L)
+            t += 1
+            q′ != q₀ && return q′, p′, t
+        end
+        return q′, p′, t
+    end
+
+    ############################################################################################
+    # Centered parameterization:
+    # yⱼ ~ N(αⱼ, σⱼ²)
+    # αⱼ ~ N(μ, τ²)
+    # μ ~ U(-∞, ∞)
+    # τ ~ U(0, ∞)
+    # τ transformed to logτ to place on unconstrained space
+
+    function gradlogπ(α, μ, logτ, y, σ²)
+        τ² = abs2(exp(logτ))
+        # ∇l = @. - (α - y) / σ² - (α - μ) / τ²
+        ∇l = .- (α .- y) ./ σ² .- (α .- μ) ./ τ²
+        dπdμ = 0.
+            for j ∈ axes(α, 1)
+                dπdμ -= (μ - α[j]) / τ² # -
+            end
+        dπdlogτ = - length(α) + 1.
+            for j ∈ axes(α, 1)
+                dπdlogτ += abs2(α[j] - μ) / τ²
+            end
+        [∇l; dπdμ; dπdlogτ]
+    end
+    gradlogπ(q, y, σ²) = gradlogπ(q[1:8], q[9], q[10], y, σ²)
+
+    function logπq(α, μ, logτ, y, σ²)
+        τ² = abs2(exp(logτ))
+        # s = 0
+        # s += logτ
+        s = logτ
+        for j ∈ axes(α, 1)
+            s += -log(√(2π * σ²[j])) - 0.5abs2(y[j] - α[j]) / σ²[j] - 0.5abs2(α[j] - μ) / τ²
+            # s += - 0.5log(2π * σ²[j]) - 0.5abs2(y[j] - α[j]) / σ²[j] - 0.5abs2(α[j] - μ) / τ²
+        end
+        s -= length(α) * log(√(2π * τ²))
+        # s -= length(α) * 0.5log(2π * τ²)
+        s
+        # # unnormalized density
+        # τ² = abs2(exp(logτ))
+        # s = logτ
+        # for j ∈ axes(α, 1)
+        #     s += -0.5abs2(y[j] - α[j]) / σ²[j] - 0.5abs2(α[j] - μ) / τ²
+        # end
+        # s += -0.5log(2π * τ²)
+        # s
+    end
+    logπq(q, y, σ²) = logπq(q[1:8], q[9], q[10], y, σ²)
+    ############################################################################################
+    #### 2022-02-14: non-centered parameterization
+    # yⱼ ~ N(μ + τ * ηⱼ, σⱼ²)
+    # ηⱼ ~ N(0, 1)
+    # μ ~ U(-∞, ∞)
+    # τ ~ U(0, ∞)
+    # τ transformed to logτ to place on unconstrained space
+
+    # Clearly not the most efficient approach -- the proper way is to compute a vector, the
+    # elements of which are (y[j] - μ - τ * η[j]). Then, compute dπdμ and dπdlogτ, then
+    # mutate in place to complete the computation of ∇l.
+    function gradlogπ_nc(η, μ, logτ, y, σ²)
+        τ = exp(logτ)
+        ∇l = Vector{Float64}(undef, length(η))
+        for j ∈ eachindex(η, y, σ²)
+            ∇l[j] = (y[j] - μ - τ * η[j]) * τ / σ²[j] - η[j]
+        end
+        dπdμ = 0.0
+        for j ∈ eachindex(η, y, σ²)
+            dπdμ += (y[j] - μ - τ * η[j]) / σ²[j]
+        end
+        dπdlogτ = 1.0
+        for j ∈ eachindex(η, y, σ²)
+            dπdlogτ += τ * (y[j] - μ - τ * η[j]) * η[j] / σ²[j]
+        end
+        [∇l; dπdμ; dπdlogτ]
+    end
+    gradlogπ_nc(q, y, σ²) = gradlogπ_nc(q[1:8], q[9], q[10], y, σ²)
+
+    function logπq_nc(η, μ, logτ, y, σ²)
+        τ = exp(logτ)
+        s = logτ
+        for j ∈ eachindex(η, y, σ²)
+            s += -0.5(log(2π * σ²[j]) + (1.0 / σ²[j]) * abs2(y[j] - μ - τ * η[j]) + log(2π) + abs2(η[j]))
+        end
+        s
+    end
+    logπq_nc(q, y, σ²) = logπq_nc(q[1:8], q[9], q[10], y, σ²)
+
+    #### Utilities for conversion to original parameterization
+    function originalparam(θ::Vector{T}) where {T<:Real}
+        K = length(θ)
+        τ = exp(θ[K])
+        μ = θ[K - 1]
+        ϑ = Vector{promote_type(T, Float64)}(undef, K)
+        for k = 1:(K - 2)
+            ϑ[k] = μ + τ * θ[k]
+        end
+        ϑ[K - 1] = μ
+        ϑ[K] = τ
+        ϑ
+    end
+
+    function originalparam(θ::Matrix{T}) where {T<:Real}
+        K, S = size(θ)
+        ϑ = Matrix{promote_type(T, Float64)}(undef, K, S)
+        for s ∈ axes(θ, 2)
+            τ = exp(θ[K, s])
+            μ = θ[K - 1, s]
+            for k = 1:(K - 2)
+                ϑ[k, s] = μ + τ * θ[k, s]
+            end
+            ϑ[K - 1, s] = μ
+            ϑ[K, s] = τ
+        end
+        ϑ
+    end
+    originalparam(θ::Array{T, 3}) where {T<:Real} = mapslices(originalparam, θ, dims=(1, 2))
+
+    ############################################################################################
+    #### MCMC diagnostics: potential scale reduction and effective sample size
+    # Simulations arranged on dimension 2, chains on dimension 3
+    # function withinchainmean(chain::AbstractMatrix)
+    #     ψ̄ = mean(chain, dims=2)
+    # end
+    function betweenchain(ϑ::Array{T, 3}) where {T<:Real}
+        B = size(ϑ, 2) .* var(dropdims(mean(ϑ, dims=2), dims=2), dims=2)
+    end
+
+    function withinchain(ϑ::Array{T, 3}) where {T<:Real}
+        W = mean(dropdims(var(ϑ, dims=2), dims=2), dims=2)
+    end
+
+    function vhat(ψ::AbstractMatrix{T}) where {T<:Real}
+        n = size(ψ, 1)
+        B = n * var(mean(ψ, dims=1))
+        W = mean(var(ψ, dims=1))
+        v̂⁺ = ((n - 1) / n) * W + (1 / n) * B
+    end
+
+
+    function vhat(ϑ::Array{T, 3}) where {T<:Real}
+        n = size(ϑ, 2)
+        B = n .* var(dropdims(mean(ϑ, dims=2), dims=2), dims=2)
+        W = mean(dropdims(var(ϑ, dims=2), dims=2), dims=2)
+        v̂⁺ = ((n - 1) / n) .* W .+ (1 / n) .* B
+    end
+
+    function Rhat(ψ::AbstractMatrix{T}) where {T<:Real}
+        n = size(ψ, 1)
+        B = n * var(mean(ψ, dims=1))
+        W = mean(var(ψ, dims=1))
+        v̂⁺ = ((n - 1) / n) * W + (1 / n) * B
+        R̂ = √(v̂⁺ / W)
+    end
+
+    function Rhat(ϑ::Array{T, 3}) where {T<:Real}
+        n = size(ϑ, 2)
+        B = n .* var(dropdims(mean(ϑ, dims=2), dims=2), dims=2)
+        W = mean(dropdims(var(ϑ, dims=2), dims=2), dims=2)
+        v̂⁺ = ((n - 1) / n) .* W .+ (1 / n) .* B
+        R̂ = sqrt.(v̂⁺ ./ W)
+    end
+
+    function variogram(ψ::AbstractMatrix{T}, t::Int) where {T<:Real}
+        n, m = size(ψ)
+        s = zero(T)
+        for j ∈ axes(ψ, 2)
+            for i = (t + 1):n
+                s += abs2(ψ[i, j] - ψ[i - t, j])
+            end
+        end
+        return s / (m * (n - t))
+    end
+
+    autocor(ψ::AbstractMatrix{T}, t::Int) where {T<:Real} = one(T) - variogram(ψ, t) / 2vhat(ψ)
+
+    function findautolag(ψ::AbstractMatrix{T}) where {T<:Real}
+        n = size(ψ, 1)
+        for t = 1:2:(n - 3)
+            ρ̂ₜ₊₁ = autocor(ψ, t)
+            ρ̂ₜ₊₂ = autocor(ψ, t + 1)
+            ρ̂ₜ₊₁ + ρ̂ₜ₊₂ < 0 && return t
+        end
+        return n - 3
+    end
+
+    function neff(ψ::AbstractMatrix{T}) where {T<:Real}
+        n, m = size(ψ)
+        # t = findautolag(ψ)
+        Σρ = zero(T)
+        for t = 1:2:(n - 3)
+            ρ̂ₜ₊₁ = autocor(ψ, t)
+            ρ̂ₜ₊₂ = autocor(ψ, t + 1)
+            s = ρ̂ₜ₊₁ + ρ̂ₜ₊₂
+            s < 0 && break
+            Σρ += s
+            # s < 0 ? break : (Σρ += s)
+        end
+        n̂ₑ = n * m / (one(T) + 2Σρ)
+    end
+
+    neff(ϑ::Array{T, 3}) where {T<:Real} = mapslices(neff, ϑ, dims=(2, 3))
+
+    ############################################################################################
+    using Plots
+    gr(size=(1200,800))
+    # Example for non-centered parameterization
+    # Data
+    y = Float64[28, 8, -3, 7, -1, 1, 18, 12];
+    σ = Float64[15, 10, 16, 11, 9, 11, 10, 18];
+    σ² = abs2.(σ);
+
+    # Integration time and stepsize. These are suggested values -- try some others, keeping ϵL=1
+    ϵ = 0.2
+    L = 5
+    N = 1000
+    N_chains = 8
+
+    # Euclidean-Gaussian metric
+    scale = 15;
+    M⁻¹ = diagm(ones(10)); M⁻¹[9, 9] = scale^2;
+    M = diagm(1 ./ diag(M⁻¹));
+
+    f_logπ = let y = y, σ² = σ²
+        q -> logπq_nc(q, y, σ²)
+    end;
+    f_gradlogπ = let y = y, σ² = σ²
+        q -> gradlogπ_nc(q, y, σ²)
+    end;
+
+    @timev θ, E, n, t = hmc(f_logπ, f_gradlogπ, M, M⁻¹, ϵ, L, N);
+
+    ebfmi(E)
+
+    Epq, Eq = microcanonicalenergy(f_logπ, θ, E);
+    pₕ = histogram([Epq Eq] .- [mean(Epq) mean(Eq)], labels=["E_pq ≡ π(E|q)" "E_q ≡ π(E)"], alpha=0.5,
+                   annotations=((0.1, 1.0), text("E-BFMI = $(round(ebfmi(E), digits=3))", 8)),
+                   xlabel="E - <E>");
+    savefig(pₕ, joinpath(pwd(), "energy.pdf"))
+
+    # Multiple chains
+    @timev chains = [hmc(f_logπ, f_gradlogπ, M, M⁻¹, ϵ, L, N) for _ = 1:N_chains];
+    acprob = getindex.(chains, 3) ./ getindex.(chains, 4)
+    θ = cat(first.(chains)..., dims=3);
+    mean(θ, dims=(2,3))
+    E = hcat(getindex.(chains, 2)...);
+
+    ϑ = originalparam(θ[:, (N >> 1 + 1):N, :]);
+    mean(ϑ, dims=(2, 3))
+    # Convergence check
+    n₂ = size(ϑ, 2)
+    n = n₂ >> 1
+    ϑ₂ = [view(ϑ, :, 1:n, :);;; view(ϑ, :, (n + 1):n₂, :)];
+    neff(ϑ₂)
+    Rhat(ϑ₂)
+
+    ps = map(1:N_chains) do k
+        Epq, Eq = microcanonicalenergy(f_logπ, θ[:, :, k], E[:, k])
+        pₕ = histogram([Epq Eq] .- [mean(Epq) mean(Eq)], labels=["E_pq ≡ π(E|q)" "E_q ≡ π(E)"],
+                       alpha=0.5,
+                       annotations=((0.1, 1.0), text("E-BFMI = $(round(ebfmi(E[:, k]), digits=3))", 8)),
+                       xlabel="E - <E>")
+        pₕ
+    end;
+    pₕ = plot(ps...);
+    savefig(pₕ, joinpath(pwd(), "energy_$(N_chains)chain.pdf"))
+
+    #################### Centered parameterization -- might get stuck due to small τ
+    ϵ = 0.1
+    L = 10
+    N = 1000
+    N_chains = 8
+
+    scale = 15;
+    M = diagm(fill(1 / scale^2, 10)); M[10, 10] = 1;
+    M⁻¹ = diagm(1 ./ diag(M));
+
+    f_logπ_c = let y = y, σ² = σ²
+        q -> logπq(q, y, σ²)
+    end;
+    f_gradlogπ_c = let y = y, σ² = σ²
+        q -> gradlogπ(q, y, σ²)
+    end;
+
+
+    # Typically, centered parameterization necessitates a non-small τ starting point, so guarantee it
+    qᵢ, pᵢ, tᵢ = initialize(f_logπ_c, f_gradlogπ_c, M, M⁻¹, ϵ, L)
+    @timev θ, E, n, t = hmc(f_logπ_c, f_gradlogπ_c, qᵢ, M, M⁻¹, ϵ, L, N);
+
+    ebfmi(E)
+
+    Epq, Eq = microcanonicalenergy(f_logπ_c, θ, E);
+    pₕ = histogram([Epq Eq] .- [mean(Epq) mean(Eq)], labels=["E_pq ≡ π(E|q)" "E_q ≡ π(E)"], alpha=0.5,
+                   annotations=((0.1, 1.0), text("E-BFMI = $(round(ebfmi(E), digits=3))", 8)),
+                   xlabel="E - <E>");
+    savefig(pₕ, joinpath(pwd(), "energy_c.pdf"))
+
+    # Multiple chains
+    @timev chains = [hmc(f_logπ_c, f_gradlogπ_c,
+                         first(initialize(f_logπ_c, f_gradlogπ_c, M, M⁻¹, ϵ, L)), # qᵢ's
+                         M, M⁻¹, ϵ, L, N) for _ = 1:N_chains];
+    acprob = getindex.(chains, 3) ./ getindex.(chains, 4)
+    θ = cat(first.(chains)..., dims=3);
+    mean(θ, dims=(2,3))
+    E = hcat(getindex.(chains, 2)...);
+
+    # Convergence check
+    neff(θ)
+    Rhat(θ)
+
+    ϑ = θ[:, (N >> 1 + 1):N, :];
+    mean(ϑ, dims=(2, 3))
+    # Convergence check
+    n₂ = size(ϑ, 2)
+    n = n₂ >> 1
+    ϑ₂ = [view(ϑ, :, 1:n, :);;; view(ϑ, :, (n + 1):n₂, :)];
+    neff(ϑ₂)
+    Rhat(ϑ₂)
+
+    ps = map(1:N_chains) do k
+        Epq, Eq = microcanonicalenergy(f_logπ_c, θ[:, :, k], E[:, k])
+        pₕ = histogram([Epq Eq] .- [mean(Epq) mean(Eq)], labels=["E_pq ≡ π(E|q)" "E_q ≡ π(E)"],
+                       alpha=0.5,
+                       annotations=((0.1, 1.0), text("E-BFMI = $(round(ebfmi(E[:, k]), digits=3))", 8)),
+                       xlabel="E - <E>")
+        pₕ
+    end;
+    pₕ = plot(ps...);
+    savefig(pₕ, joinpath(pwd(), "energy_c_$(N_chains)chain.pdf"))
+
+  #+end_src
+  
